@@ -53,6 +53,7 @@ def clean_fridge_rule(
     return df
 
 
+# TEST IT WORKS
 if __name__ == "__main__":
     # Paths assuming project root is current working directory
     raw_dir = Path("data/raw")
