@@ -1,4 +1,5 @@
 import pandas as pd
+from pathlib import Path
 
 
 def resample_chain2(
@@ -7,59 +8,85 @@ def resample_chain2(
     freq: str = "1min",
     group_col: str | None = None,
 ) -> pd.DataFrame:
+
     df = df.copy()
 
-    # Normalize timestamps to UTC to avoid DST / mixed-offset issues
+    # Normalize timestamps to UTC (handles +00, +01, DST, etc.)
     df[time_col] = pd.to_datetime(df[time_col], utc=True)
 
     if group_col is None:
-        # Single time series
         df = df.set_index(time_col).sort_index()
-        df_resampled = df.resample(freq).ffill()
-        df_resampled = df_resampled.reset_index()  # bring datetime back as a column
+        df_resampled = df.resample(freq).ffill().reset_index()
         return df_resampled
 
-    # Multiple homes (or other groups): resample independently per group
-    resampled_chunks = []
-
+    # Multiple homes: resample each home independently
+    chunks = []
     for gid, g in df.groupby(group_col):
-        g = g.sort_values(time_col)
-        g = g.set_index(time_col)
-
+        g = g.sort_values(time_col).set_index(time_col)
         g_resampled = g.resample(freq).ffill()
-        g_resampled[group_col] = gid  # keep the home_id on resampled rows
+        g_resampled[group_col] = gid
+        chunks.append(g_resampled)
 
-        resampled_chunks.append(g_resampled)
-
-    df_resampled = pd.concat(resampled_chunks)
-    df_resampled = df_resampled.reset_index().sort_values([group_col, time_col])
-
+    df_resampled = pd.concat(chunks).reset_index()
+    df_resampled = df_resampled.sort_values([group_col, time_col])
     return df_resampled
 
 
-if __name__ == "__main__":
-    # --- Read raw CSVs ---
-    train_df = pd.read_csv("train.csv")
-    test_df = pd.read_csv("test.csv")
+def clean_fridge_rule(
+    df: pd.DataFrame,
+    power_col: str = "power",
+    fridge_col: str = "fridge",
+    max_fridge: float = 450.0,
+    ratio_threshold: float = 0.4,
+) -> pd.DataFrame:
+    df = df.copy()
 
-    # --- Resample train per home_id (multiple homes) ---
+    # Basic sanity clip
+    df[power_col] = df[power_col].clip(lower=0)
+    df[fridge_col] = df[fridge_col].clip(lower=0)
+
+    mask = (df[fridge_col] > max_fridge) & (
+        df[fridge_col] > ratio_threshold * df[power_col]
+    )
+    df.loc[mask, fridge_col] = max_fridge
+
+    return df
+
+
+if __name__ == "__main__":
+    # Paths assuming project root is current working directory
+    raw_dir = Path("data/raw")
+    proc_dir = Path("data/processed")
+    proc_dir.mkdir(parents=True, exist_ok=True)
+
+    # --- TRAIN ---
+    train_path = raw_dir / "train.csv"
+    train_df = pd.read_csv(train_path)
+
     train_1min = resample_chain2(
         train_df,
         time_col="datetime",
         freq="1min",
-        group_col="home_id",  # train has multiple homes
+        group_col="home_id",  # multiple homes
     )
+    train_1min = clean_fridge_rule(train_1min)  # apply 0.4 / 450 rule
 
-    # --- Resample test as a single home (no home_id column in test.csv) ---
+    train_out = proc_dir / "train_1min.csv"
+    train_1min.to_csv(train_out, index=False)
+
+    # --- TEST ---
+    test_path = raw_dir / "test.csv"
+    test_df = pd.read_csv(test_path)
+
+    # single test home, no home_id
     test_1min = resample_chain2(
         test_df,
         time_col="datetime",
         freq="1min",
-        group_col=None,  # single test home
+        group_col=None,
     )
 
-    # --- Save outputs ---
-    train_1min.to_csv("train_1min.csv", index=False)
-    test_1min.to_csv("test_1min.csv", index=False)
+    test_out = proc_dir / "test_1min.csv"
+    test_1min.to_csv(test_out, index=False)
 
-    print("Saved resampled files: train_1min.csv, test_1min.csv")
+    print(f"Saved resampled files:\n  {train_out}\n  {test_out}")
