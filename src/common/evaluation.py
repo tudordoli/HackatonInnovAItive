@@ -6,26 +6,12 @@ import numpy as np
 import pandas as pd
 
 
-# =========================
-# Helpers
-# =========================
-
-
 def _to_1d_array(y) -> np.ndarray:
-    """
-    Convert Series/DataFrame/array-like to a flat 1D numpy array.
-    Prevents accidental broadcasting into NxN matrices.
-    """
     if isinstance(y, (pd.Series, pd.DataFrame)):
         arr = y.values
     else:
         arr = np.asarray(y)
     return arr.reshape(-1)
-
-
-# =========================
-# Regression metrics
-# =========================
 
 
 def mae(y_true, y_pred) -> float:
@@ -56,20 +42,11 @@ def sae(y_true, y_pred) -> float:
     return float(num / den)
 
 
-# =========================
-# LOHO splitter
-# =========================
-
-
 def loho_split(
     X: pd.DataFrame,
     y: pd.Series | pd.DataFrame,
     home_col: str = "home_id",
 ):
-    """
-    Leave-One-Home-Out cross-validation splitter.
-    Yields (home, X_train, X_valid, y_train, y_valid)
-    """
     if home_col not in X.columns:
         raise ValueError(f"loho_split: '{home_col}' column missing from X.")
 

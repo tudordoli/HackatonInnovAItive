@@ -9,9 +9,6 @@ from src.common.config import (
     DATA_DIR_PROCESSED,
 )
 
-# ============================================
-# CONFIG (feel free to change)
-# ============================================
 
 ROLL_WINDOW = 3  # rolling window size in minutes
 

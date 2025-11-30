@@ -11,9 +11,6 @@ from src.common.config import (
 )
 
 
-# ============================================
-# RESAMPLING LOGIC (CHAIN2 → 1-MINUTE)
-# ============================================
 def resample_chain2(df, time_col="datetime", freq="1min", group_col=None):
     df = df.copy()
 
@@ -37,9 +34,6 @@ def resample_chain2(df, time_col="datetime", freq="1min", group_col=None):
     return out.sort_values([group_col, time_col])
 
 
-# ============================================
-# FRIDGE CLEANING RULE
-# ============================================
 def clean_fridge_rule(
     df,
     power_col="power",
@@ -60,9 +54,6 @@ def clean_fridge_rule(
     return df
 
 
-# ============================================
-# MAIN SCRIPT
-# ============================================
 if __name__ == "__main__":
 
     print("Resampling train/test...")
